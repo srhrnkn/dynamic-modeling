@@ -1,0 +1,12 @@
+name: holds_model
+title: holds_model
+username:
+account: srhrnkn
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2331207
+bundleId: 3179505
+url: https://srhrnkn.shinyapps.io/holds_model/
+when: 1590170364.36769
+asMultiple: FALSE
+asStatic: FALSE

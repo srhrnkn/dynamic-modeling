@@ -17,10 +17,19 @@ library(magrittr)
 #define functions to calculate holds placed
 
 #start at top value, decrease in straight line
-holds_placed_function <- function(i){pmax(round(20-i,0),0)}
-attributes(holds_placed_function)$name <- "straightline"
+holds_placed_function_straightline <- function(i,top,slope){pmax(round(top+i*slope,0),0)}
 
-#start at top value, taper to low value
+#start at top value, taper off
+holds_placed_function <- function(i,top){round(top*exp(((1-i)+1)/5),0)}
+#increase then decrease
+holds_placed_function_parabola <- function(i,a,b,c){a*(i^2)+(b*i)+c}
+
+#reverse s shape
+#increase then decrease
+holds_placed_function_rev_s <- function(i,a,c){c(exp(a*i))/(c(exp(a*i))+ (1-c))}
+
+
+
 
 #build and peak
 
@@ -31,6 +40,7 @@ initial_buy <- 3L
 checkout_duration <- 21L
 prob_nh <- 0
 simtime <- 52*7
+top_holds_placed <- 20L
 
 
 for(i in 1:simtime){
@@ -55,14 +65,14 @@ for(i in 1:simtime){
       mutate(
         day = i,
         #calc holds placed for this day
-        holds_placed = holds_placed_function(i),
+        holds_placed = holds_placed_function(i,top_holds_placed),
         #calc new avail licenses at start of step based on vals from previous step
         licenses_avail = licenses_avail + licenses_bought + checkins -
           holds_filled - nonhold_checkouts,
         #calc new checked out licenses based on vals from previous step
         licenses_out = licenses_out + holds_filled + nonhold_checkouts - checkins,
         #checkouts from nonhold if any are available
-        nonhold_checkouts = round(prob_nh*licenses_avail,0),
+        nonhold_checkouts = round(prob_nh*min(c(licenses_avail,hmodel$licenses_avail[i-1])),0),
         #check in titles from checkout duration days ago
         checkins = replace_na(hmodel$holds_filled[max(i-checkout_duration,1)],0) +
           replace_na(hmodel$nonhold_checkouts[max(i-checkout_duration,1)],0),

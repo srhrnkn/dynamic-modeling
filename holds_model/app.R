@@ -1,13 +1,13 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
+
 #
 
 library(shiny)
+library(tidyverse)
+library(magrittr)
+
+#todo: add functions for holds placement
+#build additional lag for nonhold checkouts
+
 
 # Define UI 
 ui <- fluidPage(
@@ -15,7 +15,7 @@ ui <- fluidPage(
     # Application title
     titlePanel("Single Title Holds Model"),
 
-    # Sidebar with a slider input for number of bins 
+    # Sidebars with a slider input
     sidebarLayout(
         sidebarPanel(
             sliderInput(inputId = "holds_ratio",
@@ -44,16 +44,22 @@ ui <- fluidPage(
                         "Days to project",
                         min = 0,
                         max = 730,
-                        value = 365)
+                        value = 180),
+            sliderInput(inputId = "top_holds_placed",
+                        "Top daily holds placed value",
+                        min = 0,
+                        max = 200,
+                        value = 20)
     ),
         # Show a plot of the generated distribution
         mainPanel(
-           plotOutput("modelPlot")
+           plotOutput("modelPlot") #,
+           #DT::dataTableOutput("hmodel")
         )
     )
 )
 
-# Define server logic required to draw a histogram
+# Define server logic
 server <- function(input, output) {
 
     output$modelPlot <- renderPlot({
@@ -63,8 +69,9 @@ server <- function(input, output) {
         checkout_duration <- input$checkout_duration
         prob_nh <- input$prob_nh
         simtime <- input$simtime
-        holds_placed_function <- function(i){pmax(round(20-i,0),0)}
-        attributes(holds_placed_function)$name <- "straightline"
+        top_holds_placed <- input$top_holds_placed
+        holds_placed_function <- function(i,top){round(top*exp(((1-i)+1)/5),0)}
+        attributes(holds_placed_function)$name <- "taper"
         
         for(i in 1:simtime){
             if(i==1){
@@ -88,19 +95,21 @@ server <- function(input, output) {
                     mutate(
                         day = i,
                         #calc holds placed for this day
-                        holds_placed = holds_placed_function(i),
+                        holds_placed = holds_placed_function(i,top_holds_placed),
                         #calc new avail licenses at start of step based on vals from previous step
                         licenses_avail = licenses_avail + licenses_bought + checkins -
                             holds_filled - nonhold_checkouts,
                         #calc new checked out licenses based on vals from previous step
                         licenses_out = licenses_out + holds_filled + nonhold_checkouts - checkins,
-                        #checkouts from nonhold if any are available
-                        nonhold_checkouts = round(prob_nh*licenses_avail,0),
-                        #check in titles from checkout duration days ago
+                        #checkouts from nonhold if any are available -use the lowest of today's and yesterday's value
+                        nonhold_checkouts = round(prob_nh*min(c(licenses_avail,hmodel$licenses_avail[i-1])),0),
+                        #check in titles from [checkout_duration] days ago
                         checkins = replace_na(hmodel$holds_filled[max(i-checkout_duration,1)],0) +
                             replace_na(hmodel$nonhold_checkouts[max(i-checkout_duration,1)],0),
                         #calc new holds filled
                         holds_filled = pmin(hold_count,licenses_avail),
+                        #calc total checkouts
+                        checkouts=holds_filled+nonhold_checkouts,
                         #calc new total holds
                         hold_count = hold_count + holds_placed - holds_filled,
                         #licenses that exist at this step
@@ -118,15 +127,33 @@ server <- function(input, output) {
             }
         }
         
-        hmodel %>% select(day,total_licenses,licenses_out,holds_placed,holds_filled,current_ratio,licenses_bought) %>% 
+        hmodel %>% select(day,total_licenses,licenses_avail,licenses_out,holds_placed,holds_filled,current_ratio,licenses_bought,hold_count,checkins,nonhold_checkouts,checkouts) %>% 
             pivot_longer(cols = -day,names_to = "measure",values_to = "value") %>% 
-            ggplot(aes(x=day,y=value)) + geom_line() + facet_wrap(~measure,scales = "free_y",ncol=2) + 
+            mutate(measure=factor(measure,levels=c(
+                "holds_placed",
+                "licenses_out",
+                "hold_count",
+                "total_licenses",
+                "current_ratio",
+                "licenses_bought",
+                "licenses_avail",
+                "nonhold_checkouts",
+                "checkins",
+                "checkouts",
+                "holds_filled"
+                
+            ))) %>% 
+            ggplot(aes(x=day,y=value)) + geom_line() + facet_wrap(~measure,scales = "free_y",ncol=2,dir = "v") + 
             theme_minimal() +
             labs(title = "Hold simulation",
                  subtitle = paste0("holds ratio: ",holds_ratio,"; initial buy: ",initial_buy,"; checkout duration: ",checkout_duration,
-                                   "\n probability of nonhold checkout: ",STRAD::format_perc(prob_nh),'; holds placed behavior: ',attributes(holds_placed_function)$name,
+                                   "\n probability of nonhold checkout: ",paste0(round(prob_nh* 100, digits = 2), "%"),'; holds placed behavior: ',attributes(holds_placed_function)$name,
                                    "; simulation time: ",simtime," days"))
-    })
+    },height = 800)
+    
+    # output$hmodel = DT::renderDataTable({
+    #     hmodel
+    # })
 }
 
 # Run the application 
