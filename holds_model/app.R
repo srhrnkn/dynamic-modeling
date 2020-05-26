@@ -49,7 +49,12 @@ ui <- fluidPage(
                         "Top daily holds placed value",
                         min = 0,
                         max = 200,
-                        value = 20)
+                        value = 20),
+            selectInput(inputId = "holds_placed_function",
+                        label = "Hold placement pattern",
+                        choices = list(`taper` = "taper",
+                                       `bell` = "bell",
+                                       `steady` = "steady"))
     ),
         # Show a plot of the generated distribution
         mainPanel(
@@ -70,8 +75,19 @@ server <- function(input, output) {
         prob_nh <- input$prob_nh
         simtime <- input$simtime
         top_holds_placed <- input$top_holds_placed
-        holds_placed_function <- function(i,top){round(top*exp(((1-i)+1)/5),0)}
-        attributes(holds_placed_function)$name <- "taper"
+        bell <- function(x,max_val){
+            max_val*exp(-(x-5-10)^2/30)}
+        taper <- function(x,max_val){
+            #shift right
+            x <- x-20
+            x <- x/20
+            (c*exp(-5*(x))/(c*exp(a*(x))+(1-.7)))*max_val}
+        steady <- function(x,max_val){
+            max_val
+        }
+        
+        holds_placed_function <- get(input$holds_placed_function)
+        attributes(holds_placed_function)$name <- input$holds_placed_function
         
         for(i in 1:simtime){
             if(i==1){
@@ -95,7 +111,7 @@ server <- function(input, output) {
                     mutate(
                         day = i,
                         #calc holds placed for this day
-                        holds_placed = holds_placed_function(i,top_holds_placed),
+                        holds_placed = holds_placed_function(x = i,max_val=top_holds_placed),
                         #calc new avail licenses at start of step based on vals from previous step
                         licenses_avail = licenses_avail + licenses_bought + checkins -
                             holds_filled - nonhold_checkouts,
