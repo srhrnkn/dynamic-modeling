@@ -81,7 +81,7 @@ server <- function(input, output) {
             #shift right
             x <- x-20
             x <- x/20
-            (c*exp(-5*(x))/(c*exp(a*(x))+(1-.7)))*max_val}
+            (.3*exp(-5*(x))/(.3*exp(-5*(x))+(1-.7)))*max_val}
         steady <- function(x,max_val){
             max_val
         }
