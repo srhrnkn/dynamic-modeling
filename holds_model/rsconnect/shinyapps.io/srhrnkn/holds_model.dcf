@@ -5,8 +5,8 @@ account: srhrnkn
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 2331207
-bundleId: 3179505
+bundleId: 3193099
 url: https://srhrnkn.shinyapps.io/holds_model/
-when: 1590170364.36769
+when: 1590534074.41087
 asMultiple: FALSE
 asStatic: FALSE
